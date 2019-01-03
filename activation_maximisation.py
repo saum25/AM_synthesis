@@ -133,10 +133,7 @@ def main():
     print("----------------------------")
     
     # list of different learning rates
-    start_lr_list = [10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6] # bypasses the init_lr argument during grid search
-
-    # each element is the maximum activation value per combination of hyperparameters
-    max_activation_list = []
+    start_lr_list = [params_dict['start_step_size']]#[10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6] # bypasses the init_lr argument during grid search
     
     for lr in start_lr_list:
 
@@ -197,14 +194,17 @@ def main():
         Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
         
         # save the maximum activation per setting
-        max_activation_list.append(neuron_score_max[0])
+        #max_activation_list.append(neuron_score_max[0])
+        
+        with open('max_activations.txt', 'a+') as fd:
+            fd.write(str(neuron_score_max[0]) + '\n')
         
         print
         print("Optimisation ends....")
         print('---------------------------')
     
     # Save max activations, one per hyperparameter set
-    Utils.save_max_activation(start_lr_list, max_activation_list, args.output_dir)
+    #Utils.save_max_activation(start_lr_list, max_activation_list, args.output_dir)
 
 
 if __name__ == "__main__":
