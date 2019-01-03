@@ -1,0 +1,181 @@
+'''
+Created on 8 Nov 2018
+
+@author: Saumitra
+'''
+
+import tensorflow as tf
+import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+import librosa.display as disp
+import os
+
+def non_local_block(inputs):
+    input_shape = inputs.get_shape().as_list()
+    assert(len(input_shape) == 3)
+    features = input_shape[2]
+    assert(features % 2 == 0)
+    theta = tf.layers.conv1d(inputs, features//2, 1, padding="same", use_bias=False)
+    phi = tf.layers.conv1d(inputs, features//2, 1, padding="same", use_bias=False)
+    g = tf.layers.conv1d(inputs, features//2, 1, padding="same", use_bias=False)
+
+    # Compute similarity matrix
+    f = tf.matmul(phi, tf.transpose(theta, [0, 2, 1]))
+    f = tf.nn.softmax(f, axis=2)
+
+    # compute output path
+    y = tf.matmul(f, g)
+
+    # reshape to input tensor format
+    #y = tf.reshape(y, [input_shape[0], input_shape[1], features // 2])
+
+    # project filters
+    y = tf.layers.conv1d(y, features, 1, padding="same", use_bias=False)
+
+    # residual connection
+    residual = tf.add(inputs, y)
+
+    return residual
+
+def getTrainableVariables(tag=""):
+    return [v for v in tf.trainable_variables() if tag in v.name]
+
+def getTrainableVariables_classifier(tag=""):
+    return [v for v in tf.trainable_variables() if tag not in v.name]
+
+def getNumParams(tensors):
+    return np.sum([np.prod(t.get_shape().as_list()) for t in tensors])
+
+def pad_freqs(tensor, target_shape):
+    '''
+    Pads the frequency axis of a 4D tensor of shape [batch_size, freqs, timeframes, channels] or 2D tensor [freqs, timeframes] with zeros
+    so that it reaches the target shape. If the number of frequencies to pad is uneven, the rows are appended at the end. 
+    :param tensor: Input tensor to pad with zeros along the frequency axis
+    :param target_shape: Shape of tensor after zero-padding
+    :return: 
+    '''
+    target_freqs = (target_shape[1] if len(target_shape) == 4 else target_shape[0])
+    if isinstance(tensor, tf.Tensor):
+        input_shape = tensor.get_shape().as_list()
+    else:
+        input_shape = tensor.shape
+
+    if len(input_shape) == 2:
+        input_freqs = input_shape[0]
+    else:
+        input_freqs = input_shape[1]
+
+    diff = target_freqs - input_freqs
+    if diff % 2 == 0:
+        pad = [(diff/2, diff/2)]
+    else:
+        pad = [(diff//2, diff//2 + 1)] # Add extra frequency bin at the end
+
+    if len(target_shape) == 2:
+        pad = pad + [(0,0)]
+    else:
+        pad = [(0,0)] + pad + [(0,0), (0,0)]
+
+    if isinstance(tensor, tf.Tensor):
+        return tf.pad(tensor, pad, mode='constant', constant_values=0.0)
+    else:
+        return np.pad(tensor, pad, mode='constant', constant_values=0.0)
+
+def LeakyReLU(x, alpha=0.2):
+    return tf.maximum(alpha*x, x)
+
+
+def normalise(x):
+    """
+    Normalise an input vector/ matrix in the range 0 - 1
+    @param: x: input vector/matrix
+    @return: normalised vector/matrix
+    """
+    return((x-x.min())/(x.max()-x.min()))
+
+def save_gen_out(gen_out, iteration, directory, score):
+    '''
+    normalise (0 -1) and save output representation from the generator model
+    @param: gen_out: unnormalised generator output
+    @param: iteration: optimisation iteration count
+    @param: directory: path to save results
+    @param: score: activation for the current iteration
+    @return: NA
+    '''
+    plt.figure(figsize=(6, 4))
+    disp.specshow(normalise(gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm')
+    plt.tight_layout()
+    plt.colorbar()
+    plt.savefig(os.getcwd() + '/'+ directory +'/'+'examples/'+ 'example_iteration'+ str(iteration) + '_score' + str(round(score, 2)) +'.pdf', dpi = 300)
+    plt.close()
+
+def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
+    """
+    Saves a plot depicting how the parameter represented by y_axis_param changes w.r.t. param represented by x_axis_param
+    @param: y_axis_param: list of params lists
+    @param: x_axis: list indicating iteration count
+    @param: output_dir: path to the output directory
+    @param: y_axis_label: label for each item in the param list
+    @return: NA
+    """
+    for param_idx, param in enumerate(y_axis_param):
+        plt.figure(figsize=(6,4))
+        plt.plot(x_axis_param, param)
+        plt.xticks(np.linspace(1, len(param), 10)) # x-axis will have 10 ticks, linearly spaced # TO DO: Fix the x-axis tick spaces from float to int
+        plt.xlabel("Iterations")
+        plt.ylabel(y_axis_label[param_idx])
+        plt.savefig(output_dir + y_axis_label[param_idx] +'.pdf', dpi = 300)
+        plt.close()
+
+def crop(tensor, target_shape, match_feature_dim=True):
+    '''
+    Crops a 3D tensor [batch_size, width, channels] along the width axes to a target shape.
+    Performs a centre crop. If the dimension difference is uneven, crop last dimensions first.
+    :param tensor: 4D tensor [batch_size, width, height, channels] that should be cropped.
+    :param target_shape: Target shape (4D tensor) that the tensor should be cropped to
+    :return: Cropped tensor
+    '''
+    shape = np.array(tensor.get_shape().as_list())
+    diff = shape - np.array(target_shape)
+    assert(diff[0] == 0)# Only width axis can differ
+    if (diff[1] % 2 != 0):
+        print("WARNING: Cropping with uneven number of extra entries on one side")
+    assert diff[1] >= 0 # Only positive difference allowed
+    if diff[2] == 0:
+        return tensor
+    crop_start = diff // 2
+    crop_end = diff - crop_start
+
+    return tensor[:,:,crop_start[2]:-crop_end[2],:]
+
+def read_meanstd_file(file_path):
+    """
+    load mean and std dev per dimension (frequency band) calculated over the Jamendo training data
+    @param: file path to the mean std dev file
+    @return: mean: mean across each freq band
+    @return: istd: inverse of std dev across each freq band
+    """   
+    with np.load(file_path) as f:
+        mean = f['mean']
+        std = f['std']      
+    istd = np.reciprocal(std)
+    
+    return mean, istd
+
+def save_max_activation(lr_list, max_act_list, op_dir):
+    """
+    saves the plot of maximum activation per setting of hyperparameters
+    @param: lr_list: list of initial learning rates
+    @param: max_act_list: maximum activation values per setting of hyperparameters
+    @param: op_dir: output directory
+    @return: NA
+    """
+    
+    plt.figure(figsize=(6,4))
+    plt.plot(np.arange(1, len(lr_list)+1, 1), max_act_list)
+    plt.xticks(np.arange(1, len(lr_list)+1, 1), ['{:f}'.format(temp) for temp in lr_list])
+    plt.xlabel("learning rate")
+    plt.ylabel('maximum activation')
+    plt.savefig(os.getcwd() + '/'+ op_dir+ '/' + 'max_act' +'.pdf', dpi = 300)
