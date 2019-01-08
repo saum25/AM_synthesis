@@ -167,7 +167,9 @@ def main():
     for iteration in range(params_dict['iterations']):
         max_flag = 0 # reinit in every iteration
         
-        if args.optimizer != 'Adam':
+        if args.optimizer == 'Adam':
+            step_size = params_dict['start_step_size'] # just used for displaying results in each iteration
+        else:
             step_size = params_dict['start_step_size'] + ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
         
         # execute the graph
@@ -181,7 +183,7 @@ def main():
             max_flag = 1
             #print("Max Neuron Score: %f" %(neuron_score_max))
         
-        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [Penalty]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter, neuron_score_max, penalty, np.linalg.norm(gradients[0]), params_dict['start_step_size']))
+        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [Penalty]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter, neuron_score_max, penalty, np.linalg.norm(gradients[0]), step_size))
         
         # save generator output
         if max_flag:
