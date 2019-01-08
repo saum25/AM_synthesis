@@ -42,8 +42,14 @@ def non_local_block(inputs):
 def getTrainableVariables(tag=""):
     return [v for v in tf.trainable_variables() if tag in v.name]
 
-def getTrainableVariables_classifier(tag=""):
-    return [v for v in tf.trainable_variables() if tag not in v.name]
+def getTrainableVariables_classifier(tag_list):
+    classifier_vars = []
+    for v in tf.trainable_variables():
+        if (tag_list[0] not in v.name) and (tag_list[1] not in v.name):
+            classifier_vars.append(v)
+        else:
+            pass
+    return classifier_vars
 
 def getNumParams(tensors):
     return np.sum([np.prod(t.get_shape().as_list()) for t in tensors])
