@@ -113,7 +113,7 @@ def main():
     
     # Update the score depending on the regularisation type
     updated_score = wrapper.apply_regularisation(params_dict, reg_penalty, score)
-
+ 
     # Calculate gradient depending on the optimizer type
     if args.optimizer == 'Adam':
         opt_obj = tf.train.AdamOptimizer(params_dict['start_step_size'])
@@ -174,8 +174,9 @@ def main():
         
         # execute the graph
         if args.optimizer == 'Adam':
-            _, gen_output, neuron_score_iter, gradients, penalty, inp_noise= sess.run([optm_operation, gen_mel, score, grad_vector[0], reg_penalty, inp_noise_vec]) # grad_vector is a list of tuples
-            print("N_high %d" %(np.sum(np.abs(inp_noise)>2)))
+            gen_output, neuron_score_iter, gradients, penalty, inp_noise_bf= sess.run([gen_mel, updated_score, grad_vector[0], reg_penalty, inp_noise_vec]) # grad_vector is a list of tuples
+            print("N_high %d" %(np.sum(np.abs(inp_noise_bf)>2)))
+            _= sess.run(optm_operation) #separate as this results in change of input vector
         else:
             gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
             
@@ -214,7 +215,7 @@ def main():
 
     # saving the maximum activation value to a file        
     with open('max_activations.txt', 'a+') as fd:
-        fd.write(str(neuron_score_max[0]) + '\n')
+        fd.write(str(neuron_score_max[0]) + '\t'+ str(penalty_term[0] - penalty_term [-1]) + '\n')
     
 if __name__ == "__main__":
     main()
