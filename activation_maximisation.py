@@ -41,7 +41,7 @@ def main():
     # optimization
     parser.add_argument('--n_iters', type=int, default=50, help='number of iterations')
     parser.add_argument('--init_lr', type=float, default=1e-2, help='initial learning rate')
-    parser.add_argument('--reg_param', type=float, default=1e-2, help='regularization scale factor')
+    parser.add_argument('--reg_param', type=float, default=1e-3, help='regularization scale factor')
     parser.add_argument('--reg_type', type=str, default='L2', help='regularizer type')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type')
     parser.add_argument('--seed', type=int, default=0, help='starting seed')
@@ -174,7 +174,8 @@ def main():
         
         # execute the graph
         if args.optimizer == 'Adam':
-            _, gen_output, neuron_score_iter, gradients, penalty= sess.run([optm_operation, gen_mel, score, grad_vector[0], reg_penalty]) # grad_vector is a list of tuples
+            _, gen_output, neuron_score_iter, gradients, penalty, inp_noise= sess.run([optm_operation, gen_mel, score, grad_vector[0], reg_penalty, inp_noise_vec]) # grad_vector is a list of tuples
+            print("N_high %d" %(np.sum(np.abs(inp_noise)>2)))
         else:
             gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
             
@@ -183,7 +184,7 @@ def main():
             max_flag = 1
             #print("Max Neuron Score: %f" %(neuron_score_max))
         
-        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [Penalty]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter, neuron_score_max, penalty, np.linalg.norm(gradients[0]), step_size))
+        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [Penalty]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter, neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
         
         # save generator output
         if max_flag:
@@ -196,7 +197,7 @@ def main():
         
         # append neuron activations, penalty term and gradients for every iteration
         activations.append(neuron_score_iter)
-        penalty_term.append(penalty)
+        penalty_term.append(np.sqrt(penalty))
         grad_norm_list.append(np.linalg.norm(gradients[0]))
                     
     # saving plots of other useful data

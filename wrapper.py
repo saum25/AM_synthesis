@@ -75,12 +75,12 @@ def calculate_regularisation_penalty(latent_vector, reg_type):
     if reg_type != "No_Regularisation":
         # two choices either L2-norm or Gaussian prior
         if reg_type == "L2":
-            return (tf.norm(latent_vector, axis=1))
+            #return (tf.norm(latent_vector, axis=1))
+            return (tf.reduce_sum(tf.square(latent_vector))) # a scalar
         else: # TO DO
             mean = tf.constant(0., tf.float32, (lat_vec_len, ))
-            cov = tf.constant(np.identity(lat_vec_len, dtype=np.float32), tf.float32)
-            print("[Gaussian Prior] Mean vec shape: %s Cov matrix shape: %s" %(mean.shape, cov.shape))
-            rv = tf.contrib.distributions.MultivariateNormalFullCovariance(mean, cov)
+            print("[Gaussian Prior] Mean vec shape: %s" %(mean.shape))
+            rv = tf.contrib.distributions.MultivariateNormalDiag(mean)
             return(rv.prob(latent_vector))
     else:
         return tf.constant(0, tf.float32, ())
@@ -96,7 +96,7 @@ def apply_regularisation(params_dict, reg_penalty, score):
     if params_dict["reg_type"]=="Gaussian_Prior": # TO DO
         updated_score = tf.add(score, tf.multiply(tf.constant(params_dict['reg_param'], tf.float32), reg_penalty))
     else:
-        updated_score = tf.subtract(score, tf.multiply(tf.constant(params_dict['reg_param'], tf.float32), reg_penalty)) # takes care L2 and no regulariser case (reg_penatly = 0)
+        updated_score = tf.subtract(score, tf.multiply(tf.constant(0.5 * params_dict['reg_param'], tf.float32), reg_penalty)) # takes care L2 and no regulariser case (reg_penatly = 0)
     
     return updated_score
 
