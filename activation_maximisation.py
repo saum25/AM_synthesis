@@ -65,7 +65,7 @@ def main():
     print " output dir: %s" % args.output_dir
     print "-------------"
     
-    if args.optimizer !='Adam':
+    '''if args.optimizer !='Adam':
         final_lr = args.init_lr * 1e-8
     
     params_dict = {
@@ -77,6 +77,9 @@ def main():
                    'reg_type':  args.reg_type, # good to use extra comma to prevent issues when editing later
                    'mean_std_fp': meanstd_file_path,
                    }
+    
+    # path to store results
+    results_path = args.output_dir + '/lr_' + str(params_dict['start_step_size']) + '_rp_' + str(params_dict['reg_param'])
     
     # Determine the shape of generator input and output : CAUTION redundancy exists due to the use of conditional RNN generator code.
     num_gen_frames = gen_model_config["num_frames"] - gen_model_config["num_cond_frames"]
@@ -160,7 +163,7 @@ def main():
     grad_norm_list = []
     
     # initialise neuron activation to a very low value
-    neuron_score_max = np.array([-100])
+    neuron_score_max = -100
     
     print("--------------Learning rate: %f--------------" %(params_dict['start_step_size']))
     
@@ -174,38 +177,37 @@ def main():
         
         # execute the graph
         if args.optimizer == 'Adam':
-            gen_output, neuron_score_iter, gradients, penalty, inp_noise_bf= sess.run([gen_mel, updated_score, grad_vector[0], reg_penalty, inp_noise_vec]) # grad_vector is a list of tuples
-            print("N_high %d" %(np.sum(np.abs(inp_noise_bf)>2)))
+            gen_output, neuron_score_iter, gradients, penalty= sess.run([gen_mel, score, grad_vector[0], reg_penalty]) # grad_vector is a list of tuples
             _= sess.run(optm_operation) #separate as this results in change of input vector
         else:
             gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
             
-        if (neuron_score_iter > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter) - np.abs(neuron_score_max)) * 100)) >=1):
-            neuron_score_max = neuron_score_iter
+        if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 100)) >=1):
+            neuron_score_max = neuron_score_iter[0]
             max_flag = 1
             #print("Max Neuron Score: %f" %(neuron_score_max))
         
-        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [Penalty]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter, neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
+        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
         
         # save generator output
         if max_flag:
             print("Saving example_iteration%d...." %(iteration+1))
-            Utils.save_gen_out(gen_output[0, :, :, 0], iteration+1, args.output_dir + '/lr_' + str(params_dict['start_step_size']), neuron_score_max[0])
+            Utils.save_gen_out(gen_output[0, :, :, 0], iteration+1, results_path, neuron_score_max)
 
         # Update the noise vector
         if args.optimizer != 'Adam':  
             z_low = z_low + step_size * gradients[0] # simple gradient ascent
         
         # append neuron activations, penalty term and gradients for every iteration
-        activations.append(neuron_score_iter)
+        activations.append(neuron_score_iter[0])
         penalty_term.append(np.sqrt(penalty))
         grad_norm_list.append(np.linalg.norm(gradients[0]))
                     
     # saving plots of other useful data
     y_axis_param_list = [activations, penalty_term, grad_norm_list]
     x_axis_list = (np.arange(1, params_dict['iterations']+1, 1)).tolist()
-    path_dir = os.getcwd() + '/'+ args.output_dir + '/lr_' + str(params_dict['start_step_size']) +'/'
-    y_label_list = ['neuron_score', 'penalty_term', 'grad_norm']
+    path_dir = os.getcwd() + '/'+ results_path +'/'
+    y_label_list = ['neuron_score', 'input_L2_norm', 'grad_L2_norm']
     
     Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
 
@@ -213,9 +215,10 @@ def main():
     print("Optimisation ends....")
     print('---------------------------')
 
-    # saving the maximum activation value to a file        
-    with open('max_activations.txt', 'a+') as fd:
-        fd.write(str(neuron_score_max[0]) + '\t'+ str(penalty_term[0] - penalty_term [-1]) + '\n')
-    
+    # saving the maximum activation value to a file
+    prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
+    with open('param_dump.txt', 'a+') as fd:
+        fd.write(prefix_list[0]+str(step_size)+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
+    '''
 if __name__ == "__main__":
     main()
