@@ -175,7 +175,7 @@ def main():
         if args.optimizer == 'Adam':
             step_size = params_dict['start_step_size'] # just used for displaying results in each iteration
         else:
-            step_size = params_dict['start_step_size'] + ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
+            step_size = params_dict['start_step_size'] #+ ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
         
         # execute the graph
         if args.optimizer == 'Adam':
