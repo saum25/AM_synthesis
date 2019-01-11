@@ -48,7 +48,8 @@ def main():
     
     # miscellanous
     parser.add_argument('--output_dir', type=str, default=os.getcwd(), help='location to save results')
-    
+    parser.add_argument('--param_file', type=str, default=os.getcwd(), help='results dump')
+
     args = parser.parse_args()
     
     print "-------------"
@@ -63,9 +64,10 @@ def main():
     print " seed : %d" % args.seed
     print "-------------"
     print " output dir: %s" % args.output_dir
+    print " param_file: %s" % args.param_file
     print "-------------"
     
-    '''if args.optimizer !='Adam':
+    if args.optimizer !='Adam':
         final_lr = args.init_lr * 1e-8
     
     params_dict = {
@@ -182,7 +184,7 @@ def main():
         else:
             gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
             
-        if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 100)) >=1):
+        if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 10)) >=1):
             neuron_score_max = neuron_score_iter[0]
             max_flag = 1
             #print("Max Neuron Score: %f" %(neuron_score_max))
@@ -217,8 +219,8 @@ def main():
 
     # saving the maximum activation value to a file
     prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
-    with open('param_dump.txt', 'a+') as fd:
-        fd.write(prefix_list[0]+str(step_size)+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
-    '''
+    with open(args.param_file, 'a+') as fd:
+        fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
+
 if __name__ == "__main__":
     main()
