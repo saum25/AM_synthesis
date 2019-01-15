@@ -10,6 +10,7 @@ import Utils
 import numpy as np
 import os
 import wrapper
+import librosa
 
 #removes the run time tensorflow warning that points to compile code from source
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -45,12 +46,15 @@ def main():
     parser.add_argument('--reg_type', type=str, default='L2', help='regularizer type')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type')
     parser.add_argument('--seed', type=int, default=0, help='starting seed')
+    parser.add_argument('--weight_decay', default = False, action="store_true", help='manually decay weight')
+
     
     # miscellanous
     parser.add_argument('--output_dir', type=str, default=os.getcwd(), help='location to save results')
     parser.add_argument('--param_file', type=str, default=os.getcwd(), help='results dump')
 
     args = parser.parse_args()
+
     
     print "-------------"
     print " layer: %s" % args.layer
@@ -62,6 +66,7 @@ def main():
     print " reg_type: %s" % args.reg_type
     print " optimizer: %s" % args.optimizer
     print " seed : %d" % args.seed
+    print "weight_decay: %d" %(args.weight_decay)
     print "-------------"
     print " output dir: %s" % args.output_dir
     print " param_file: %s" % args.param_file
@@ -78,6 +83,7 @@ def main():
                    'reg_param': args.reg_param,
                    'reg_type':  args.reg_type, # good to use extra comma to prevent issues when editing later
                    'mean_std_fp': meanstd_file_path,
+                   'weight_decay': args.weight_decay,
                    }
     
     # path to store results
@@ -114,11 +120,14 @@ def main():
     print("Score vector shape: %s" %(score.shape, ))
     
     # calculate the regularisation penalty
-    reg_penalty = wrapper.calculate_regularisation_penalty(inp_noise_vec, args.reg_type)
-    
-    # Update the score depending on the regularisation type
-    updated_score = wrapper.apply_regularisation(params_dict, reg_penalty, score)
- 
+    if (params_dict['weight_decay'] == True and args.optimizer != 'Adam'):
+        updated_score = score
+        reg_penalty = tf.constant(params_dict['reg_param'], dtype=tf.float32, shape=())
+    else:
+        reg_penalty = wrapper.calculate_regularisation_penalty(inp_noise_vec, args.reg_type)
+        # Update the score depending on the regularisation type
+        updated_score = wrapper.apply_regularisation(params_dict, reg_penalty, score)
+        
     # Calculate gradient depending on the optimizer type
     if args.optimizer == 'Adam':
         opt_obj = tf.train.AdamOptimizer(params_dict['start_step_size'])
@@ -163,9 +172,10 @@ def main():
     activations = []
     penalty_term = []
     grad_norm_list = []
+    max_activating_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
     
     # initialise neuron activation to a very low value
-    neuron_score_max = -100
+    neuron_score_max = -100.0
     
     print("--------------Learning rate: %f--------------" %(params_dict['start_step_size']))
     
@@ -189,21 +199,30 @@ def main():
             max_flag = 1
             #print("Max Neuron Score: %f" %(neuron_score_max))
         
-        print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
+        if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
+            print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
+        else:    
+            print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
         
         # save generator output
         if max_flag:
             print("Saving example_iteration%d...." %(iteration+1))
             Utils.save_gen_out(gen_output[0, :, :, 0], iteration+1, results_path, neuron_score_max)
-
-        # Update the noise vector
-        if args.optimizer != 'Adam':  
-            z_low = z_low + step_size * gradients[0] # simple gradient ascent
+            max_activating_mel = gen_output[0, :, :, 0]
         
         # append neuron activations, penalty term and gradients for every iteration
         activations.append(neuron_score_iter[0])
-        penalty_term.append(np.sqrt(penalty))
+        if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
+            penalty_term.append(np.linalg.norm(z_low))
+        else:
+            penalty_term.append(np.sqrt(penalty))
         grad_norm_list.append(np.linalg.norm(gradients[0]))
+        
+        # Update the noise vector
+        if args.optimizer != 'Adam':
+            z_low = z_low + step_size * gradients[0] # simple gradient ascent
+            if params_dict['weight_decay'] == True: # scale weights manually
+                z_low = z_low * penalty
                     
     # saving plots of other useful data
     y_axis_param_list = [activations, penalty_term, grad_norm_list]
@@ -221,6 +240,12 @@ def main():
     prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
     with open(args.param_file, 'a+') as fd:
         fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
+
+    # invert mel spectrogram to spectrogram
+    spect = Utils.logMelToSpectrogram(max_activating_mel)
+    audio = Utils.spectrogramToAudioFile(spect, fftWindowSize = 1024, hopSize = 315)
+    librosa.output.write_wav('recon_mel_max.wav', audio, sr = 22050)
+    
 
 if __name__ == "__main__":
     main()

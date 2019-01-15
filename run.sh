@@ -32,14 +32,14 @@ rp_str="_rp_"
 scale_factor=0.1
 
 
-for lr in 1.0 0.1 #0.01 0.001 0.0001
+for lr in 1.0 0.1 0.01 0.001 0.0001
 do
 	# bash does''t support floating point arithmetic, so use bc to process
 	# watch for the use of $ sign while saving the output to another variable
 	# currently not used
 	adaptive_reg=$(echo $lr*$scale_factor | bc -l)
 
-	for rp in 0.1 0.01 #0.001 0.0001
+	for rp in 1.0 0.1 0.01 0.001 0.0001
 	do
 		echo ++++++++++++++++++++learning rate: $lr regularisation paramter: $rp++++++++++++++
 

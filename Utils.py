@@ -11,6 +11,8 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 import librosa.display as disp
 import os
+import numpy.linalg as linalg
+import librosa
 
 def non_local_block(inputs):
     input_shape = inputs.get_shape().as_list()
@@ -185,3 +187,136 @@ def save_max_activation(lr_list, max_act_list, op_dir):
     plt.xlabel("learning rate")
     plt.ylabel('maximum activation')
     plt.savefig(os.getcwd() + '/'+ op_dir+ '/' + 'max_act' +'.pdf', dpi = 300)
+    
+def create_mel_filterbank(sample_rate, frame_len, num_bands, min_freq,
+                          max_freq):
+    """
+    @ From Jan Schluter's implementation for ISMIR 2015 paper
+    Creates a mel filterbank of `num_bands` triangular filters, with the first
+    filter starting at `min_freq` and the last one stopping at `max_freq`.
+    Returns the filterbank as a matrix suitable for a dot product against
+    magnitude spectra created from samples at a sample rate of `sample_rate`
+    with a window length of `frame_len` samples.
+    """
+    # prepare output matrix
+    input_bins = (frame_len // 2) + 1
+    filterbank = np.zeros((input_bins, num_bands))
+
+    # mel-spaced peak frequencies
+    min_mel = 1127 * np.log1p(min_freq / 700.0)
+    max_mel = 1127 * np.log1p(max_freq / 700.0)
+    spacing = (max_mel - min_mel) / (num_bands + 1)
+    peaks_mel = min_mel + np.arange(num_bands + 2) * spacing
+    peaks_hz = 700 * (np.exp(peaks_mel / 1127) - 1)
+    fft_freqs = np.linspace(0, sample_rate / 2., input_bins)
+    peaks_bin = np.searchsorted(fft_freqs, peaks_hz)
+
+    # fill output matrix with triangular filters
+    for b, filt in enumerate(filterbank.T):
+        # The triangle starts at the previous filter's peak (peaks_freq[b]),
+        # has its maximum at peaks_freq[b+1] and ends at peaks_freq[b+2].
+        left_hz, top_hz, right_hz = peaks_hz[b:b+3]  # b, b+1, b+2
+        left_bin, top_bin, right_bin = peaks_bin[b:b+3]
+        # Create triangular filter compatible to yaafe
+        filt[left_bin:top_bin] = ((fft_freqs[left_bin:top_bin] - left_hz) /
+                                  (top_bin - left_bin))
+        filt[top_bin:right_bin] = ((right_hz - fft_freqs[top_bin:right_bin]) /
+                                   (right_bin - top_bin))
+        filt[left_bin:right_bin] /= filt[left_bin:right_bin].sum()
+
+    return filterbank
+
+    
+def spectrogramToLogMel(spectrogram, sample_rate=22050, fftWindowSize=1024, filterbank=None):
+    # Parameters for Mel spectrogram calculation
+    mel_bands = 80
+    mel_min = 27.5
+    mel_max = 8000
+    bin_nyquist = fftWindowSize // 2 + 1
+    bin_mel_max = bin_nyquist * 2 * mel_max // sample_rate
+
+    # prepare mel filterbank
+    if filterbank is None:
+        filterbank = create_mel_filterbank(sample_rate, fftWindowSize, mel_bands, mel_min, mel_max)
+        filterbank = filterbank[:bin_mel_max]
+        return filterbank
+
+    # compute log mel spectrogram matrix
+    spect_T = spectrogram.T
+    mspect = np.dot(spect_T[:, :bin_mel_max], filterbank).astype(np.float32)
+    mspect = np.log(np.maximum(mspect, 1e-7)) # Normalisation like in Schlueters classifier. Puts it into range [log(1e-7), +x]
+    #mspect = np.log1p(mspect) # [0, +x]
+    return mspect.T
+    
+def logMelToSpectrogram(melspec, sample_rate=22050, fftWindowSize=1024):
+    # Invert the log normalization
+    melspec = np.exp(melspec)
+
+    # Compute Mel filterbank
+    filterbank = spectrogramToLogMel(None, sample_rate, fftWindowSize)
+
+    # Invert Mel filterbank
+    filterbank_pinv = linalg.pinv(filterbank) # Should be 80x372
+
+    # Invert Mel spectrogram with inverted filterbank
+    spect = np.dot(melspec.T, filterbank_pinv).T  # (freqs, timeframes)
+
+    # Set negative spectrogram magnitudes to zero
+    spect = np.maximum(spect, 0.0)
+
+    # Append zeros for higher frequencies that we left out when computing the Mel spectrogram
+    freqs = fftWindowSize // 2 + 1
+    pad_freqs = freqs - spect.shape[0]
+    spect = np.pad(spect, [(0,pad_freqs), (0, 0)], mode='constant', constant_values=0)
+
+    return spect
+
+def reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations=10, initPhase=None, length=None):
+    '''
+    Griffin-Lim algorithm for reconstructing the phase for a given magnitude spectrogram, optionally with a given
+    intial phase.
+    :param magnitude:
+    :param fftWindowSize:
+    :param hopSize:
+    :param phaseIterations:
+    :param initPhase:
+    :param length:
+    :return:
+    '''
+    for i in range(phaseIterations):
+        if i == 0:
+            if initPhase is None:
+                reconstruction = np.random.random_sample(magnitude.shape) + 1j * (2 * np.pi * np.random.random_sample(magnitude.shape) - np.pi)
+            else:
+                reconstruction = np.exp(initPhase * 1j) # e^(j*phase), so that angle => phase
+        else:
+            reconstruction = librosa.core.stft(audio, fftWindowSize, hopSize)
+        spectrum = magnitude * np.exp(1j * np.angle(reconstruction))
+        if i == phaseIterations - 1:
+            audio = librosa.core.istft(spectrum, hopSize, length=length)
+        else:
+            audio = librosa.core.istft(spectrum, hopSize)
+    return audio
+
+def spectrogramToAudioFile(magnitude, fftWindowSize, hopSize, phaseIterations=100, phase=None, length=None):
+    '''
+    Computes an audio signal from the given magnitude spectrogram, and optionally an initial phase.
+    Griffin-Lim is executed to recover/refine the given the phase from the magnitude spectrogram.
+    :param magnitude:
+    :param fftWindowSize:
+    :param hopSize:
+    :param phaseIterations:
+    :param phase:
+    :param length:
+    :return:
+    '''
+    if phase is not None:
+        if phaseIterations > 0:
+            # Refine audio given initial phase with a number of iterations
+            return reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations, phase, length)
+        # reconstructing the new complex matrix
+        stftMatrix = magnitude * np.exp(phase * 1j) # magnitude * e^(j*phase)
+        audio = librosa.core.istft(stftMatrix, hop_length=hopSize, length=length)
+    else:
+        audio = reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations)
+    return audio
