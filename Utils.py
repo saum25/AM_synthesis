@@ -103,20 +103,27 @@ def normalise(x):
     """
     return((x-x.min())/(x.max()-x.min()))
 
-def save_gen_out(gen_out, iteration, directory, score):
+def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     '''
-    normalise (0 -1) and save output representation from the generator model
+    normalise (0-1) and save output representation from the generator model
     @param: gen_out: unnormalised generator output
-    @param: iteration: optimisation iteration count
     @param: directory: path to save results
     @param: score: activation for the current iteration
+    @param: iteration: optimisation iteration count
+    @param: pred: prediction the model applies to the instance
+    @param: case: instance to save is synthesised from AM or selected from datset
     @return: NA
     '''
     plt.figure(figsize=(6, 4))
     disp.specshow(normalise(gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm')
     plt.tight_layout()
     plt.colorbar()
-    plt.savefig(os.getcwd() + '/'+ directory +'/'+'examples/'+ 'example_iteration'+ str(iteration) + '_score' + str(round(score, 2)) +'.pdf', dpi = 300)
+    if case == 'dataset':
+        plt.savefig(directory+'/'+'mel_score_'+"%.4f" %score+ '_pred_'+"%.4f" %pred + '.pdf', dpi=300)
+    elif case == 'synth':
+        plt.savefig(os.getcwd() + '/'+ directory +'/'+'examples/'+ 'example_iteration'+ str(iteration) + '_score' + str(round(score, 2)) +'.pdf', dpi = 300)
+    else:
+        raise ValueError('%s is not a valid option for case' %case)
     plt.close()
 
 def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
@@ -298,7 +305,7 @@ def reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations=10, initPhase=
             audio = librosa.core.istft(spectrum, hopSize)
     return audio
 
-def spectrogramToAudioFile(magnitude, fftWindowSize, hopSize, phaseIterations=100, phase=None, length=None):
+def spectrogramToAudioFile(magnitude, hopSize, fftWindowSize=1024, phaseIterations=100, phase=None, length=None):
     '''
     Computes an audio signal from the given magnitude spectrogram, and optionally an initial phase.
     Griffin-Lim is executed to recover/refine the given the phase from the magnitude spectrogram.
@@ -320,3 +327,25 @@ def spectrogramToAudioFile(magnitude, fftWindowSize, hopSize, phaseIterations=10
     else:
         audio = reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations)
     return audio
+
+def save_audio(melspect, path, activation, prediction, hopsize, iterations=100, norm_flag=True):
+    """
+    invert input mel spectrogram, generate phase (using Griff & Lim)
+    and save audio.
+    @param: melspect: input mel spectrogram
+    @param: path: directory path to save audio
+    @param: activation: neuron score for the input mel spectrogram
+    @param: prediction: model prediction for the input mel spectrogram
+    @param: hopsize: hop length (samples)
+    @param: iterations: number of iterations for phase reconstruction
+    @param: norm_flag: indicates to normalise (-1 to +1) audio before saving. True-> normalise, False-> don't normalise
+    """
+    
+    spect = logMelToSpectrogram(melspect) # expects data in shape 80 x 115
+    audio = spectrogramToAudioFile(spect, hopsize, phaseIterations=iterations)
+    name = path+'/'+'recon_mel_score_'+'%.4f' %activation+'_pred_'+'%.4f'%prediction+'.wav' # string formatting is used here to truncate-> Need to find a better way?
+    librosa.output.write_wav(name, audio, sr=22050, norm=norm_flag)
+    
+    
+    
+    
