@@ -11,14 +11,16 @@ Uses the available .npz file
 import numpy as np
 import Utils
 
-file_path = 'dataset_analysis/act_out_fc8_tr_n0_analysis.npz'
+file_path = 'dataset_analysis/act_out_fc8_tr_n3_analysis.npz'
 results_path = 'results/from_dataset'
 mean_std_fp = 'models/classifier/jamendo_meanstd.npz'
+N_start = 0 # start index of excerpts to analyse
+N_stop = 10 # stop index of excerpts to analyse
 
 try:
     with np.load(file_path) as fp:
         # list of np arrays
-        ana_data = [fp[ele] for ele in sorted(fp.files)]
+        ana_data = [fp[ele][N_start:N_stop] for ele in sorted(fp.files)]
         
         # load training data set-wise mean and std dev
         with np.load(mean_std_fp) as f:

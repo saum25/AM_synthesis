@@ -242,10 +242,13 @@ def main():
         fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
 
     # invert mel spectrogram to spectrogram
-    # TO DO -> call Utils.audio instead of the below code
+    nhop=315
+    norm_flag=True
+    samp_rate = 22050
+    
     spect = Utils.logMelToSpectrogram(max_activating_mel)
-    audio = Utils.spectrogramToAudioFile(spect, fftWindowSize = 1024, hopSize = 315)
-    librosa.output.write_wav('recon_mel_max.wav', audio, sr = 22050)
+    audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
+    librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
     
 
 if __name__ == "__main__":

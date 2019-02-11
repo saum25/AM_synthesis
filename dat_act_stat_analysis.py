@@ -25,7 +25,7 @@ import pandas as pd
 from collections import OrderedDict
 
 results_path= 'results/from_dataset/stat_analysis'
-act_files = ['acts_tr_neuron 0', 'acts_tr_neuron 5', 'acts_tr_neuron 24', 'acts_tr_neuron 30']
+act_files = ['acts_tr_neuron 0', 'acts_tr_neuron 1', 'acts_tr_neuron 2', 'acts_tr_neuron 3']
 n_cols = 2
 n_excerpts = 0
 iteration=0
