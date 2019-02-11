@@ -147,108 +147,110 @@ def main():
     print("Classifier Vars: " + str(Utils.getNumParams(classifier_vars)))
     restorer_gen = tf.train.Saver(gen_vars)
     restorer_cf = tf.train.Saver(classifier_vars)
+    
+    tf.set_random_seed(args.seed)
 
-    sess = tf.Session()
+    with tf.Session() as sess:
 
-    if args.optimizer == 'Adam': # in 'Adam' case we need to initialise few global variables coming from Adam usage. 
-        sess.run(tf.global_variables_initializer())
-        
-    restorer_gen.restore(sess, gen_model_path)
-    print('Pre-trained generator model restored from file ' + gen_model_path)
-    
-    restorer_cf.restore(sess, cf_model_path)
-    print('Pre-trained classifier model restored from file ' + cf_model_path)
-    print("----------------------------")
-
-    print
-    print("Optimisation starts.....")        
-    
-    # input
-    if args.optimizer != 'Adam':
-        np.random.seed(args.seed)
-        z_low = np.random.normal(0.0, 1.0, size = (gen_model_config["batch_size"], noise_dim))
-
-    # each element corresponds to per iteration for a selected set of hyperparameters
-    activations = []
-    penalty_term = []
-    grad_norm_list = []
-    max_activating_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
-    
-    # initialise neuron activation to a very low value
-    neuron_score_max = -100.0
-    
-    print("--------------Learning rate: %f--------------" %(params_dict['start_step_size']))
-    
-    for iteration in range(params_dict['iterations']):
-        max_flag = 0 # reinit in every iteration
-        
-        if args.optimizer == 'Adam':
-            step_size = params_dict['start_step_size'] # just used for displaying results in each iteration
-        else:
-            step_size = params_dict['start_step_size'] #+ ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
-        
-        # execute the graph
-        if args.optimizer == 'Adam':
-            gen_output, neuron_score_iter, gradients, penalty= sess.run([gen_mel, score, grad_vector[0], reg_penalty]) # grad_vector is a list of tuples
-            _= sess.run(optm_operation) #separate as this results in change of input vector
-        else:
-            gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
+        if args.optimizer == 'Adam': # in 'Adam' case we need to initialise few global variables coming from Adam usage. 
+            sess.run(tf.global_variables_initializer())
             
-        if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 10)) >=1):
-            neuron_score_max = neuron_score_iter[0]
-            max_flag = 1
-            #print("Max Neuron Score: %f" %(neuron_score_max))
+        restorer_gen.restore(sess, gen_model_path)
+        print('Pre-trained generator model restored from file ' + gen_model_path)
         
-        if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
-            print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
-        else:    
-            print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
+        restorer_cf.restore(sess, cf_model_path)
+        print('Pre-trained classifier model restored from file ' + cf_model_path)
+        print("----------------------------")
+    
+        print
+        print("Optimisation starts.....")        
         
-        # save generator output
-        if max_flag:
-            print("Saving example_iteration%d...." %(iteration+1))
-            Utils.save_mel(gen_output[0, :, :, 0], results_path, neuron_score_max, iteration=iteration+1)
-            max_activating_mel = gen_output[0, :, :, 0]
-        
-        # append neuron activations, penalty term and gradients for every iteration
-        activations.append(neuron_score_iter[0])
-        if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
-            penalty_term.append(np.linalg.norm(z_low))
-        else:
-            penalty_term.append(np.sqrt(penalty))
-        grad_norm_list.append(np.linalg.norm(gradients[0]))
-        
-        # Update the noise vector
+        # input
         if args.optimizer != 'Adam':
-            z_low = z_low + step_size * gradients[0] # simple gradient ascent
-            if params_dict['weight_decay'] == True: # scale weights manually
-                z_low = z_low * penalty
-                    
-    # saving plots of other useful data
-    y_axis_param_list = [activations, penalty_term, grad_norm_list]
-    x_axis_list = (np.arange(1, params_dict['iterations']+1, 1)).tolist()
-    path_dir = os.getcwd() + '/'+ results_path +'/'
-    y_label_list = ['neuron_score', 'input_L2_norm', 'grad_L2_norm']
+            np.random.seed(args.seed)
+            z_low = np.random.normal(0.0, 1.0, size = (gen_model_config["batch_size"], noise_dim))
     
-    Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
-
-    print
-    print("Optimisation ends....")
-    print('---------------------------')
-
-    # saving the maximum activation value to a file
-    prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
-    with open(args.param_file, 'a+') as fd:
-        fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
-
-    # invert mel spectrogram to spectrogram
-    nhop=315
-    norm_flag=True
-    samp_rate = 22050
+        # each element corresponds to per iteration for a selected set of hyperparameters
+        activations = []
+        penalty_term = []
+        grad_norm_list = []
+        max_activating_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
+        
+        # initialise neuron activation to a very low value
+        neuron_score_max = -100.0
+        
+        print("--------------Learning rate: %f--------------" %(params_dict['start_step_size']))
+        
+        for iteration in range(params_dict['iterations']):
+            max_flag = 0 # reinit in every iteration
+            
+            if args.optimizer == 'Adam':
+                step_size = params_dict['start_step_size'] # just used for displaying results in each iteration
+            else:
+                step_size = params_dict['start_step_size'] #+ ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
+            
+            # execute the graph
+            if args.optimizer == 'Adam':
+                gen_output, neuron_score_iter, gradients, penalty= sess.run([gen_mel, score, grad_vector[0], reg_penalty]) # grad_vector is a list of tuples
+                _= sess.run(optm_operation) #separate as this results in change of input vector
+            else:
+                gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
+                
+            if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 10)) >=1):
+                neuron_score_max = neuron_score_iter[0]
+                max_flag = 1
+                #print("Max Neuron Score: %f" %(neuron_score_max))
+            
+            if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
+                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
+            else:    
+                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
+            
+            # save generator output
+            if max_flag:
+                print("Saving example_iteration%d...." %(iteration+1))
+                Utils.save_mel(gen_output[0, :, :, 0], results_path, neuron_score_max, iteration=iteration+1)
+                max_activating_mel = gen_output[0, :, :, 0]
+            
+            # append neuron activations, penalty term and gradients for every iteration
+            activations.append(neuron_score_iter[0])
+            if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
+                penalty_term.append(np.linalg.norm(z_low))
+            else:
+                penalty_term.append(np.sqrt(penalty))
+            grad_norm_list.append(np.linalg.norm(gradients[0]))
+            
+            # Update the noise vector
+            if args.optimizer != 'Adam':
+                z_low = z_low + step_size * gradients[0] # simple gradient ascent
+                if params_dict['weight_decay'] == True: # scale weights manually
+                    z_low = z_low * penalty
+                        
+        # saving plots of other useful data
+        y_axis_param_list = [activations, penalty_term, grad_norm_list]
+        x_axis_list = (np.arange(1, params_dict['iterations']+1, 1)).tolist()
+        path_dir = os.getcwd() + '/'+ results_path +'/'
+        y_label_list = ['neuron_score', 'input_L2_norm', 'grad_L2_norm']
+        
+        Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
     
-    spect = Utils.logMelToSpectrogram(max_activating_mel)
-    audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
-    librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
+        print
+        print("Optimisation ends....")
+        print('---------------------------')
+    
+        # saving the maximum activation value to a file
+        prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
+        with open(args.param_file, 'a+') as fd:
+            fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
+    
+        # invert mel spectrogram to spectrogram
+        nhop=315
+        norm_flag=True
+        samp_rate = 22050
+        
+        spect = Utils.logMelToSpectrogram(max_activating_mel)
+        audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
+        librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
     
 
 if __name__ == "__main__":
