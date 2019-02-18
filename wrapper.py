@@ -54,12 +54,13 @@ def generate_activation(inp_excerpt, parameters, training_mode, sym_mean, sym_is
     print("----------------------------")
     
     # create classifier architecture    
-    classifier_network = models.classifier.Classifier.architecture(pp_mel, training_mode)
+    classifier_network = models.classifier.Classifier.architecture(pp_mel, training_mode, parameters['out_neurons'])
     
     # generate score
     activation_vector = classifier_network[parameters['layer']]
     print("Activation vector shape: %s from layer <%s>" %(activation_vector.shape, parameters['layer']))
     activation = activation_vector[:, parameters['neuron']] # must be of shape (1, ) as it's the score of a single neuron
+    #activation = activation_vector[:, 2, 4, parameters['neuron']] # must be of shape (1, ) as it's the score of a single neuron
     return activation
 
 def calculate_regularisation_penalty(latent_vector, reg_type):

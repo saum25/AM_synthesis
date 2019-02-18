@@ -4,12 +4,21 @@ Created on 13 Nov 2018
 @author: Saumitra
 '''
 import tensorflow as tf
+import sys
 
-def architecture(input_var, train_mode):
+def architecture(input_var, train_mode, n_out_layer_neurons):
+    """
+    model architecture of the SVD model. Two models are supported
+    that differ in the configuration of the output layer.
+    input_var: input tensor: shape (batchsize, mel_bands, blocklen, 1)
+    train_mode: flag to indicate training or prediction mode
+    n_out_layer_neurons: indicates what model architecture to train.
+    """
     
-    print_layer_shapes = False
+    print_layer_shapes = True
     model = {}
-    #print(train_mode)
+    #print(""train_mode)
+    print("n_out_neurons: %d" %n_out_layer_neurons)
     
     # Conv1
     model['conv1'] = tf.layers.conv2d(inputs = input_var, filters = 64, kernel_size = (3, 3), kernel_initializer = tf.orthogonal_initializer)
@@ -66,11 +75,21 @@ def architecture(input_var, train_mode):
     model['act_out_fc8'] = tf.nn.leaky_relu(features=model['fc8'], alpha = 0.01)
     if print_layer_shapes:
         print(model['fc8'].shape)
-        print(model['act_out_fc8'].shape)    
-    
-    model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=1, activation=tf.nn.sigmoid, kernel_initializer = tf.orthogonal_initializer)
-    if print_layer_shapes:
-        print(model['fc9'].shape)
+        print(model['act_out_fc8'].shape)
 
+    # Output layer
+    if n_out_layer_neurons==1:
+        model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=1, activation=tf.nn.sigmoid, kernel_initializer = tf.orthogonal_initializer)
+        if print_layer_shapes:
+            print(model['fc9'].shape)
+    elif n_out_layer_neurons==2:
+        model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=2, kernel_initializer = tf.orthogonal_initializer)
+        model['softmax'] = tf.nn.softmax(logits=model['fc9'])
+        if print_layer_shapes:
+            print(model['fc9'].shape)
+            print(model['softmax'].shape)
+    else:
+        print("output_layer configuration is incorrect!")
+        sys.exit()
+        
     return model
-
