@@ -119,7 +119,7 @@ def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     plt.tight_layout()
     plt.colorbar()
     if case == 'dataset':
-        plt.savefig(directory+'/'+'mel_score_'+"%.4f" %score+ '_pred_'+"%.4f" %pred + '.pdf', dpi=300)
+        plt.savefig(directory+'/'+'mel_score_'+"%.6f" %score+ '_pred_'+"%.6f" %pred + '.pdf', dpi=300)
     elif case == 'synth':
         plt.savefig(os.getcwd() + '/'+ directory +'/'+'examples/'+ 'example_iteration'+ str(iteration) + '_score' + str(round(score, 2)) +'.pdf', dpi = 300)
     else:
@@ -343,7 +343,7 @@ def save_audio(melspect, path, activation, prediction, hopsize, iterations=100, 
     
     spect = logMelToSpectrogram(melspect) # expects data in shape 80 x 115
     audio = spectrogramToAudioFile(spect, hopsize, phaseIterations=iterations)
-    name = path+'/'+'recon_mel_score_'+'%.4f' %activation+'_pred_'+'%.4f'%prediction+'.wav' # string formatting is used here to truncate-> Need to find a better way?
+    name = path+'/'+'recon_mel_score_'+'%.6f' %activation+'_pred_'+'%.6f'%prediction+'.wav' # string formatting is used here to truncate-> Need to find a better way?
     librosa.output.write_wav(name, audio, sr=22050, norm=norm_flag)
     
     

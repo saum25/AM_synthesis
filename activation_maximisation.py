@@ -17,7 +17,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # Paths of generator and classifier model and mean std files
 gen_model_path = 'models/prior/checkpoints/623328/623328-1170000'
-cf_model_path = 'models/classifier/model3/Jamendo_augment_mel'
+cf_model_path = 'models/classifier/model2/Jamendo_augment_mel'
 meanstd_file_path = 'models/classifier/jamendo_meanstd.npz'
 
 gen_model_config = {
@@ -36,6 +36,7 @@ def main():
     parser = argparse.ArgumentParser(description='Program to synthesize examples that maximally activate neuron(s)/layer in a pre-trained CNN classifier')
 
     # layer/neuron
+    parser.add_argument('--n_out_neurons', type=int, default=1, help='number of neurons in the output layer')
     parser.add_argument('--layer', type=str, default='act_out_fc8', help='CNN layer containing neuron(s) of interest')
     parser.add_argument('--neuron', type=int, default=0, help='neuron(s) to maximally activate')
     
@@ -76,6 +77,7 @@ def main():
         final_lr = args.init_lr * 1e-8
     
     params_dict = {
+                   'out_neurons': args.n_out_neurons,
                    'layer': args.layer,
                    'neuron': args.neuron,
                    'iterations': args.n_iters,
@@ -148,7 +150,8 @@ def main():
     restorer_gen = tf.train.Saver(gen_vars)
     restorer_cf = tf.train.Saver(classifier_vars)
     
-    tf.set_random_seed(args.seed)
+    # TODO-> fixes seed for reproducibility on TF
+    #tf.set_random_seed(args.seed)
 
     with tf.Session() as sess:
 
