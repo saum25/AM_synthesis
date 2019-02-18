@@ -15,10 +15,10 @@ def architecture(input_var, train_mode, n_out_layer_neurons):
     n_out_layer_neurons: indicates what model architecture to train.
     """
     
-    print_layer_shapes = True
+    print_layer_shapes = False
     model = {}
     #print(""train_mode)
-    print("n_out_neurons: %d" %n_out_layer_neurons)
+    #print("n_out_neurons: %d" %n_out_layer_neurons)
     
     # Conv1
     model['conv1'] = tf.layers.conv2d(inputs = input_var, filters = 64, kernel_size = (3, 3), kernel_initializer = tf.orthogonal_initializer)
