@@ -101,7 +101,10 @@ def normalise(x):
     @param: x: input vector/matrix
     @return: normalised vector/matrix
     """
-    return((x-x.min())/(x.max()-x.min()))
+    if x.max() == x.min(): # wierd case in SGD optimisation, where in an intermediate step this happens
+        return x
+    else:
+        return((x-x.min())/(x.max()-x.min()))
 
 def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     '''
