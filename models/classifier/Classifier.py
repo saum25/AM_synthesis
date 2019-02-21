@@ -15,10 +15,9 @@ def architecture(input_var, train_mode, n_out_layer_neurons):
     n_out_layer_neurons: indicates what model architecture to train.
     """
     
-    print_layer_shapes = False
+    print_layer_shapes = True
     model = {}
     #print(""train_mode)
-    #print("n_out_neurons: %d" %n_out_layer_neurons)
     
     # Conv1
     model['conv1'] = tf.layers.conv2d(inputs = input_var, filters = 64, kernel_size = (3, 3), kernel_initializer = tf.orthogonal_initializer)
@@ -79,9 +78,11 @@ def architecture(input_var, train_mode, n_out_layer_neurons):
 
     # Output layer
     if n_out_layer_neurons==1:
-        model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=1, activation=tf.nn.sigmoid, kernel_initializer = tf.orthogonal_initializer)
+        model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=1, kernel_initializer = tf.orthogonal_initializer)
+        model['act_out_fc9'] = tf.nn.sigmoid(x=model['fc9'])
         if print_layer_shapes:
             print(model['fc9'].shape)
+            print(model['act_out_fc9'].shape)
     elif n_out_layer_neurons==2:
         model['fc9'] = tf.layers.dense(inputs= tf.layers.dropout(model['act_out_fc8'], rate=0.5, training = train_mode), units=2, kernel_initializer = tf.orthogonal_initializer)
         model['softmax'] = tf.nn.softmax(logits=model['fc9'])

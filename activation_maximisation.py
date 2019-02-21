@@ -17,7 +17,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # Paths of generator and classifier model and mean std files
 gen_model_path = 'models/prior/checkpoints/623328/623328-1170000'
-cf_model_path = 'models/classifier/model2/Jamendo_augment_mel'
+cf_model_path = 'models/classifier/model1/Jamendo_augment_mel'
 meanstd_file_path = 'models/classifier/jamendo_meanstd.npz'
 
 gen_model_config = {
@@ -208,7 +208,6 @@ def main():
                 print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
             else:    
                 print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
-            
             # save generator output
             if max_flag:
                 print("Saving example_iteration%d...." %(iteration+1))
