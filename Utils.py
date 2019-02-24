@@ -101,7 +101,7 @@ def normalise(x):
     @param: x: input vector/matrix
     @return: normalised vector/matrix
     """
-    if x.max() == x.min(): # wierd case in SGD optimisation, where in an intermediate step this happens
+    if x.max() == x.min(): # wierd case in the SGD optimisation, where in an intermediate step this happens
         return x
     else:
         return((x-x.min())/(x.max()-x.min()))
@@ -119,6 +119,7 @@ def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     '''
     plt.figure(figsize=(6, 4))
     disp.specshow(normalise(gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm')
+    plt.title('mel spectrogram of GAN output')
     plt.tight_layout()
     plt.colorbar()
     if case == 'dataset':
@@ -128,6 +129,32 @@ def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     else:
         raise ValueError('%s is not a valid option for case' %case)
     plt.close()
+
+def cond_save_mel(gen_out, score, best_score, n_iter, dir_path, min_flag):
+    """
+    # updates best_score and saves the corresponding GAN output only if there is a substantial change in the activation score
+    @param: gen_out: GAN output
+    @param: score: neuron activation for the interation n_iter
+    @param: best_score: best value of score so far
+    @param: n_iter: optimisation iteration number
+    @param: dir_path: location to save the GAN output
+    @param: min_flag: if True, it's activation minimisation else maximisation
+    @return: updated value of best_score
+    """
+    if min_flag == True: # minimisation case
+        if (score < best_score) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2):
+            best_score = score
+            #save GAN output
+            print("Saving example_iteration_%d...." %(n_iter+1))
+            save_mel(gen_out, dir_path, score, iteration=n_iter+1)
+    else:    # maximisation case                
+        if (score > best_score) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2):
+            # update max    
+            best_score = score
+            #save GAN output
+            print("Saving example_iteration_%d...." %(n_iter+1))
+            save_mel(gen_out, dir_path, score, iteration=n_iter+1)
+    return best_score
 
 def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
     """
@@ -141,8 +168,8 @@ def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
     for param_idx, param in enumerate(y_axis_param):
         plt.figure(figsize=(6,4))
         plt.plot(x_axis_param, param)
-        plt.xticks(np.linspace(1, len(param), 10)) # x-axis will have 10 ticks, linearly spaced # TO DO: Fix the x-axis tick spaces from float to int
-        plt.xlabel("Iterations")
+        plt.xticks(np.linspace(1, len(param), 10, dtype=np.int32)) # x-axis will have 10 ticks, linearly spaced
+        plt.xlabel("iterations")
         plt.ylabel(y_axis_label[param_idx])
         plt.savefig(output_dir + y_axis_label[param_idx] +'.pdf', dpi = 300)
         plt.close()

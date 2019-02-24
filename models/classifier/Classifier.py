@@ -15,7 +15,7 @@ def architecture(input_var, train_mode, n_out_layer_neurons):
     n_out_layer_neurons: indicates what model architecture to train.
     """
     
-    print_layer_shapes = True
+    print_layer_shapes = False
     model = {}
     #print(""train_mode)
     

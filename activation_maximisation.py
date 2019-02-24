@@ -11,15 +11,19 @@ import numpy as np
 import os
 import wrapper
 import librosa
+import pandas as pd
+from collections import OrderedDict
 
 #removes the run time tensorflow warning that points to compile code from source
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-# Paths of generator and classifier model and mean std files
+# paths of generator and classifier models and mean/std .npz
 gen_model_path = 'models/prior/checkpoints/623328/623328-1170000'
 cf_model_path = 'models/classifier/model1/Jamendo_augment_mel'
+#cf_model_path = 'models/classifier/model2/Jamendo_augment_mel' # enable if two neuron model needs to be used.
 meanstd_file_path = 'models/classifier/jamendo_meanstd.npz'
 
+# generator parameters
 gen_model_config = {
                     "batch_size" : 1, # Batch size
                     "num_frames" : 115, # DESIRED number of time frames in the spectrogram per sample at the beginning of training
@@ -33,31 +37,34 @@ gen_model_config = {
 def main():
 
     # parser for command line arguments    
-    parser = argparse.ArgumentParser(description='Program to synthesize examples that maximally activate neuron(s)/layer in a pre-trained CNN classifier')
+    parser = argparse.ArgumentParser(description='program to synthesize examples (mel spectrograms) to maximally activate a neuron in a pre-trained CNN classifier (vocal detector)')
 
     # layer/neuron
-    parser.add_argument('--n_out_neurons', type=int, default=1, help='number of neurons in the output layer')
-    parser.add_argument('--layer', type=str, default='act_out_fc8', help='CNN layer containing neuron(s) of interest')
-    parser.add_argument('--neuron', type=int, default=0, help='neuron(s) to maximally activate')
+    parser.add_argument('--n_out_neurons', type=int, default=1, help='number of neurons in the output layer. selects a classifier model. default: single neuron model')
+    parser.add_argument('--layer', type=str, default='fc9', help='layer containing neuron of interest')
+    parser.add_argument('--neuron', type=int, default=0, help='neuron idx')
     
     # optimization
-    parser.add_argument('--n_iters', type=int, default=50, help='number of iterations')
+    parser.add_argument('--n_iters', type=int, default=50, help='number of optimisation steps')
     parser.add_argument('--init_lr', type=float, default=1e-2, help='initial learning rate')
     parser.add_argument('--reg_param', type=float, default=1e-3, help='regularization scale factor')
     parser.add_argument('--reg_type', type=str, default='L2', help='regularizer type')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type')
     parser.add_argument('--seed', type=int, default=0, help='starting seed')
-    parser.add_argument('--weight_decay', default = False, action="store_true", help='manually decay weight')
+    parser.add_argument('--weight_decay', default = False, action="store_true", help='if given, forcefully makes the noise vector smaller each iteration. from Nguyen(2016)')
+    parser.add_argument('--minimise', default = False, action="store_true", help='if given, the code performs activation minimisation')
 
-    
     # miscellanous
-    parser.add_argument('--output_dir', type=str, default=os.getcwd(), help='location to save results')
-    parser.add_argument('--param_file', type=str, default=os.getcwd(), help='results dump')
+    parser.add_argument('--output_dir', type=str, default=os.getcwd(), help='location to save optimisation results')
+    parser.add_argument('--stats_csv', type=str, default=os.getcwd(), help='location to create a csv to store results of hyperparameter search')
+    parser.add_argument('--count', type=int, default=1, help='index of hyperparamter settings')
 
     args = parser.parse_args()
 
     
     print "-------------"
+    print "-------------"
+    print " num out_neurons: %d" % args.n_out_neurons
     print " layer: %s" % args.layer
     print " neuron idx: %d" % args.neuron
     print "-------------"
@@ -67,31 +74,35 @@ def main():
     print " reg_type: %s" % args.reg_type
     print " optimizer: %s" % args.optimizer
     print " seed : %d" % args.seed
-    print "weight_decay: %d" %(args.weight_decay)
+    print " weight_decay: %r" %(args.weight_decay)
+    print " minimisation: %r" %(args.minimise)
     print "-------------"
     print " output dir: %s" % args.output_dir
-    print " param_file: %s" % args.param_file
+    print " hp_stats_file: %s" % args.stats_csv
+    print " hp_setting_count: %d" %args.count
     print "-------------"
-    
+    print "-------------"
+        
+    params_dict = {
+                   'out_neurons': args.n_out_neurons,
+                   'layer': args.layer, 
+                   'neuron': args.neuron, 
+                   'reg_param': args.reg_param,
+                   'reg_type':  args.reg_type, 
+                   'mean_std_fp': meanstd_file_path, # good to use extra comma to prevent issues when editing later
+                   }
+
+    # miscellanous parameters
+    nhop=315
+    norm_flag=True
+    samp_rate = 22050
     if args.optimizer !='Adam':
         final_lr = args.init_lr * 1e-8
     
-    params_dict = {
-                   'out_neurons': args.n_out_neurons,
-                   'layer': args.layer,
-                   'neuron': args.neuron,
-                   'iterations': args.n_iters,
-                   'start_step_size': args.init_lr,                    
-                   'reg_param': args.reg_param,
-                   'reg_type':  args.reg_type, # good to use extra comma to prevent issues when editing later
-                   'mean_std_fp': meanstd_file_path,
-                   'weight_decay': args.weight_decay,
-                   }
+    # path to store optimisation results
+    results_path = args.output_dir + '/lr_' + str(args.init_lr) + '_rp_' + str(params_dict['reg_param'])
     
-    # path to store results
-    results_path = args.output_dir + '/lr_' + str(params_dict['start_step_size']) + '_rp_' + str(params_dict['reg_param'])
-    
-    # Determine the shape of generator input and output : CAUTION redundancy exists due to the use of conditional RNN generator code.
+    # shape of generator input and output : NOTE redundancy exists due to the use of conditional RNN generator code.
     num_gen_frames = gen_model_config["num_frames"] - gen_model_config["num_cond_frames"]
     num_cond_frames = gen_model_config["num_frames"] - num_gen_frames
     noise_dim = gen_model_config["noise_dim"] + num_gen_frames * gen_model_config["rnn_noise_dim_step"]    
@@ -106,37 +117,40 @@ def main():
         inp_noise_vec= tf.placeholder(tf.float32, shape=[gen_model_config["batch_size"], noise_dim])
     
     print("Input noise shape: %s" %(inp_noise_vec.shape, ))
+
+    # generate mel spectrogram excerpt
     real_batch = np.ones(shape)
     real_batch_cond = real_batch[:, :, :num_cond_frames, :]
-    
-    # generate mel spectrogram excerpt
-    gen_mel = wrapper.generate_mel(inp_noise_vec, gen_model_config, real_batch_cond) # CAUTION: "real_batch_cond" is a redundant variable
+    gen_mel = wrapper.generate_mel(inp_noise_vec, gen_model_config, real_batch_cond) # NOTE: "real_batch_cond" is a redundant variable
     print("Generator output shape:%s" %(gen_mel.shape, ))
        
-    # generate desired neuron(s)/layer activation
-    mean, istd = Utils.read_meanstd_file(params_dict['mean_std_fp'])
-    sym_mean = tf.constant(mean, dtype= tf.float32)
-    sym_istd = tf.constant(istd, dtype=tf.float32) 
-    training_mode = tf.constant(False)
-    score = wrapper.generate_activation(gen_mel, params_dict, training_mode, sym_mean, sym_istd)
+    # generate activation from the desired neuron
+    score = wrapper.generate_activation(gen_mel, params_dict)
     print("Score vector shape: %s" %(score.shape, ))
     
-    # calculate the regularisation penalty
-    if (params_dict['weight_decay'] == True and args.optimizer != 'Adam'):
+    # calculate and apply the regularisation penalty
+    if (args.weight_decay == True and args.optimizer != 'Adam'): # Nguyen et al. (2016, NIPS), a high value 0.99 is used as a regulariser to reduce noise size in each iteration
         updated_score = score
         reg_penalty = tf.constant(params_dict['reg_param'], dtype=tf.float32, shape=())
     else:
         reg_penalty = wrapper.calculate_regularisation_penalty(inp_noise_vec, args.reg_type)
-        # Update the score depending on the regularisation type
-        updated_score = wrapper.apply_regularisation(params_dict, reg_penalty, score)
+        updated_score = wrapper.apply_regularisation(reg_penalty, score, params_dict)
         
+    print("----------------------------")
+
     # Calculate gradient depending on the optimizer type
     if args.optimizer == 'Adam':
-        opt_obj = tf.train.AdamOptimizer(params_dict['start_step_size'])
-        grad_vector = opt_obj.compute_gradients(-1 * updated_score, var_list = [inp_noise_vec]) # remember by default the gradient is calculated on all the variables in the collection - trainable
+        opt_obj = tf.train.AdamOptimizer(args.init_lr)
+        if args.minimise==True:
+            print("Activation Minimisation Case....")
+            grad_vector = opt_obj.compute_gradients(updated_score, var_list = [inp_noise_vec]) # remember by default the gradient is calculated on all the variables in the collection - trainable
+        else:
+            print("Activation Maximisation Case....")
+            grad_vector = opt_obj.compute_gradients(-1 * updated_score, var_list = [inp_noise_vec])
+            
         print("Gradient vector shape: %s" %(grad_vector[0][0].shape, ))
         optm_operation = opt_obj.apply_gradients(grad_vector)
-    else:
+    else: # vanilla-SGD
         grad_vector = tf.gradients(updated_score, inp_noise_vec)
         print("Gradient vector shape: %s" %(grad_vector[0].shape, ))
     
@@ -149,13 +163,11 @@ def main():
     print("Classifier Vars: " + str(Utils.getNumParams(classifier_vars)))
     restorer_gen = tf.train.Saver(gen_vars)
     restorer_cf = tf.train.Saver(classifier_vars)
-    
-    # TODO-> fixes seed for reproducibility on TF
-    #tf.set_random_seed(args.seed)
 
     with tf.Session() as sess:
 
-        if args.optimizer == 'Adam': # in 'Adam' case we need to initialise few global variables coming from Adam usage. 
+        # in 'Adam' case we need to initialise few global variables coming from Adam usage. 
+        if args.optimizer == 'Adam':
             sess.run(tf.global_variables_initializer())
             
         restorer_gen.restore(sess, gen_model_path)
@@ -163,34 +175,38 @@ def main():
         
         restorer_cf.restore(sess, cf_model_path)
         print('Pre-trained classifier model restored from file ' + cf_model_path)
-        print("----------------------------")
-    
-        print
-        print("Optimisation starts.....")        
+        print("----------------------------")      
         
-        # input
+        # input for the vanilla SGD case
         if args.optimizer != 'Adam':
             np.random.seed(args.seed)
             z_low = np.random.normal(0.0, 1.0, size = (gen_model_config["batch_size"], noise_dim))
     
-        # each element corresponds to per iteration for a selected set of hyperparameters
+        # lists to hold elements corresponding to per optimisation iteration
         activations = []
         penalty_term = []
-        grad_norm_list = []
-        max_activating_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
+        grad_norm= []
+        optm_stats = []
+
+        # init the best (max or min) mel spect. we use it for inversion to audio
+        best_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
         
-        # initialise neuron activation to a very low value
-        neuron_score_max = -100.0
+        if args.minimise==True:
+            # initialise neuron activation to a very high value
+            neuron_score_best = 1000.0
+        else:
+            # initialise neuron activation to a very low value
+            neuron_score_best = -1000.0
+
+        print
+        print("Optimisation starts.....")  
         
-        print("--------------Learning rate: %f--------------" %(params_dict['start_step_size']))
-        
-        for iteration in range(params_dict['iterations']):
-            max_flag = 0 # reinit in every iteration
+        for iteration in range(args.n_iters):
             
             if args.optimizer == 'Adam':
-                step_size = params_dict['start_step_size'] # just used for displaying results in each iteration
+                step_size = args.init_lr # just used for displaying results in each iteration
             else:
-                step_size = params_dict['start_step_size'] #+ ((final_lr- params_dict['start_step_size']) * iteration) / params_dict['iterations']        
+                step_size = args.init_lr + (((final_lr- args.init_lr) * iteration) / args.n_iters)       
             
             # execute the graph
             if args.optimizer == 'Adam':
@@ -199,61 +215,56 @@ def main():
             else:
                 gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
                 
-            if (neuron_score_iter[0] > neuron_score_max) and (np.trunc(np.abs((np.abs(neuron_score_iter[0]) - np.abs(neuron_score_max)) * 10)) >=1):
-                neuron_score_max = neuron_score_iter[0]
-                max_flag = 1
-                #print("Max Neuron Score: %f" %(neuron_score_max))
-            
-            if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
-                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
+            # save output and update score
+            neuron_score_best=Utils.cond_save_mel(gen_output[0, :, :, 0], neuron_score_iter[0], neuron_score_best, iteration, results_path, args.minimise)
+            best_mel = gen_output[0, :, :, 0]
+
+            if args.weight_decay == True and args.optimizer != 'Adam':
+                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (O/p Saved)]: %.4f [input L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_best, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
             else:    
-                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (Max)]: %.4f [L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_max, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
-            # save generator output
-            if max_flag:
-                print("Saving example_iteration%d...." %(iteration+1))
-                Utils.save_mel(gen_output[0, :, :, 0], results_path, neuron_score_max, iteration=iteration+1)
-                max_activating_mel = gen_output[0, :, :, 0]
+                print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (O/P Saved)]: %.4f [input L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_best, np.sqrt(penalty), np.linalg.norm(gradients[0]), step_size))
             
             # append neuron activations, penalty term and gradients for every iteration
             activations.append(neuron_score_iter[0])
-            if params_dict['weight_decay'] == True and args.optimizer != 'Adam':
+            if args.weight_decay == True and args.optimizer != 'Adam':
                 penalty_term.append(np.linalg.norm(z_low))
             else:
                 penalty_term.append(np.sqrt(penalty))
-            grad_norm_list.append(np.linalg.norm(gradients[0]))
+            grad_norm.append(np.linalg.norm(gradients[0]))
             
-            # Update the noise vector
+            # Update the noise vector for the SGD case
             if args.optimizer != 'Adam':
-                z_low = z_low + step_size * gradients[0] # simple gradient ascent
-                if params_dict['weight_decay'] == True: # scale weights manually
+                if args.minimise== True:
+                    z_low = z_low - step_size * gradients[0]
+                else:
+                    z_low = z_low + step_size * gradients[0]
+                    
+                if args.weight_decay == True: # scale weights manually
                     z_low = z_low * penalty
-                        
-        # saving plots of other useful data
-        y_axis_param_list = [activations, penalty_term, grad_norm_list]
-        x_axis_list = (np.arange(1, params_dict['iterations']+1, 1)).tolist()
-        path_dir = os.getcwd() + '/'+ results_path +'/'
-        y_label_list = ['neuron_score', 'input_L2_norm', 'grad_L2_norm']
-        
-        Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
-    
         print
         print("Optimisation ends....")
         print('---------------------------')
+
+        # saving plots of useful data
+        print("Saving miscellanous information...")
+        y_axis_param_list = [activations, penalty_term, grad_norm]
+        x_axis_list = (np.arange(1, args.n_iters+1, 1)).tolist()
+        path_dir = os.getcwd() + '/'+ results_path +'/'
+        y_label_list = ['neuron_score', 'noise_L2_norm', 'grad_L2_norm']        
+        Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
     
-        # saving the maximum activation value to a file
-        prefix_list = ['Learning Rate:', 'Regularisation Param:', 'Activation:', 'L2 Norm Diff:']        
-        with open(args.param_file, 'a+') as fd:
-            fd.write(prefix_list[0]+str(params_dict['start_step_size'])+'\t'+prefix_list[1]+str(args.reg_param)+'\t'+prefix_list[2]+str(np.around(neuron_score_max, decimals = 3))+'\t'+ prefix_list[3] + str(np.around(penalty_term[0] - penalty_term [-1], decimals = 3)) + '\n')
-    
-        # invert mel spectrogram to spectrogram
-        nhop=315
-        norm_flag=True
-        samp_rate = 22050
-        
-        spect = Utils.logMelToSpectrogram(max_activating_mel)
+        # saving key stats per optimisation in a csv file as row    
+        optm_stats.append(OrderedDict([('Learning Rate', args.init_lr), ('Regularisation Param', args.reg_param), ('Max/Min Activation', np.around(neuron_score_best, decimals=3)), ('Noise L2 Norm Diff', np.around(penalty_term[0] - penalty_term [-1], decimals = 3))]))
+        df_stats = pd.DataFrame(optm_stats)
+        if args.count==1:
+            df_stats.to_csv(args.stats_csv, mode='a', index=False)
+        else:
+            df_stats.to_csv(args.stats_csv, mode='a', header=False, index=False)
+            
+        # save the best mel spectrogram to audio for auralisation                
+        spect = Utils.logMelToSpectrogram(best_mel)
         audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
         librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
-    
-
+        
 if __name__ == "__main__":
     main()
