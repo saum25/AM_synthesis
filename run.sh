@@ -66,6 +66,15 @@ do
 		mkdir results/Adam/maximise/$lr_str$lr$rp_str$rp/examples
 		python activation_maximisation.py --output_dir results/Adam/maximise --init_lr $lr --reg_param $rp --n_iters $iter --stats_csv 'results/optm_stats_Adam.csv' --count $setting_count
 
+		if [ $sgd_optm -eq 1 ]; then
+			echo +++++++ SGD - activation maximisation case ++++++++
+			mkdir results/SGD/maximise/$lr_str$lr$rp_str$rp
+			mkdir results/SGD/maximise/$lr_str$lr$rp_str$rp/examples
+			python activation_maximisation.py --output_dir results/SGD/maximise --optimizer 'SGD' --init_lr $lr --reg_param $rp --n_iters $iter --stats_csv 'results/optm_stats_SGD.csv' --count $setting_count
+		fi
+
+		setting_count=$((setting_count+1))
+
 
 		if [ $act_min -eq 1 ];  then
 			echo +++++++ Adam - activation minimisation case ++++++++
@@ -75,13 +84,6 @@ do
 		fi
 
 
-		if [ $sgd_optm -eq 1 ]; then
-			echo +++++++ SGD - activation maximisation case ++++++++
-			mkdir results/SGD/maximise/$lr_str$lr$rp_str$rp
-			mkdir results/SGD/maximise/$lr_str$lr$rp_str$rp/examples
-			python activation_maximisation.py --output_dir results/SGD/maximise --optimizer 'SGD' --init_lr $lr --reg_param $rp --n_iters $iter --stats_csv 'results/optm_stats_SGD.csv' --count $setting_count
-		fi
-
 		if [[ $sgd_optm -eq 1 && $act_min -eq 1 ]]; then
 			echo +++++++ SGD - activation minimisation case ++++++++
 			mkdir results/SGD/minimise/$lr_str$lr$rp_str$rp
@@ -89,7 +91,6 @@ do
 			python activation_maximisation.py --output_dir results/SGD/minimise --optimizer 'SGD' --init_lr $lr --reg_param $rp --n_iters $iter --stats_csv 'results/optm_stats_SGD.csv' --count $setting_count --minimise
 		fi
 
-		setting_count=$((setting_count+1))
 
 	done
 
