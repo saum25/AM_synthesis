@@ -141,20 +141,12 @@ def cond_save_mel(gen_out, score, best_score, n_iter, dir_path, min_flag):
     @param: min_flag: if True, it's activation minimisation else maximisation
     @return: updated value of best_score
     """
-    if min_flag == True: # minimisation case
-        if (score < best_score) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2):
-            best_score = score
-            #save GAN output
-            print("Saving example_iteration_%d...." %(n_iter+1))
-            save_mel(gen_out, dir_path, score, iteration=n_iter+1)
-    else:    # maximisation case                
-        if (score > best_score) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2):
-            # update max    
-            best_score = score
-            #save GAN output
-            print("Saving example_iteration_%d...." %(n_iter+1))
-            save_mel(gen_out, dir_path, score, iteration=n_iter+1)
-    return best_score
+    if (((min_flag and (score < best_score)) or ((not min_flag) and (score > best_score))) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2)):
+        print("Saving example_iteration_%d...." %(n_iter+1))
+        save_mel(gen_out, dir_path, score, iteration=n_iter+1)
+        return score
+    else:
+        return best_score
 
 def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
     """
