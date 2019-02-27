@@ -218,8 +218,7 @@ def main():
                 gen_output, neuron_score_iter, gradients, penalty = sess.run([gen_mel, score, grad_vector, reg_penalty], feed_dict={inp_noise_vec : z_low}) # grad_vector is a list
                 
             # save output and update score
-            neuron_score_best=Utils.cond_save_mel(gen_output[0, :, :, 0], neuron_score_iter[0], neuron_score_best, iteration, results_path, args.minimise)
-            best_mel = gen_output[0, :, :, 0]
+            best_mel, neuron_score_best=Utils.cond_save_mel(gen_output[0, :, :, 0], best_mel, neuron_score_iter[0], neuron_score_best, iteration, results_path, args.minimise)
 
             if args.weight_decay == True and args.optimizer != 'Adam':
                 print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (O/p Saved)]: %.4f [input L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_best, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
@@ -253,7 +252,7 @@ def main():
         x_axis_list = (np.arange(1, args.n_iters+1, 1)).tolist()
         path_dir = os.getcwd() + '/'+ results_path +'/'
         y_label_list = ['neuron_score', 'noise_L2_norm', 'grad_L2_norm']        
-        #Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
+        Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
     
         # saving key stats per optimisation in a csv file as row    
         optm_stats.append(OrderedDict([('Learning Rate', args.init_lr), ('Regularisation Param', args.reg_param), ('Iterations', args.n_iters), ('Seed', args.seed), ('Max/Min Activation', np.around(neuron_score_best, decimals=3)), ('Noise L2 Norm Diff', np.around(penalty_term[0] - penalty_term [-1], decimals = 3))]))
@@ -263,10 +262,14 @@ def main():
         else:
             df_stats.to_csv(args.stats_csv, mode='a', header=False, index=False)
             
-        # save the best mel spectrogram to audio for auralisation                
+        # save the best mel spectrogram and invert it to audio for auralisation
+        
+        # save the best mel - it's a redundant step, but done to save the best output
+        Utils.save_mel(best_mel, results_path, neuron_score_best, iteration=0)
+                        
         spect = Utils.logMelToSpectrogram(best_mel)
         audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
-        #librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
+        librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
         
         print("Time taken: %f" %(time.time()-start_time))
         

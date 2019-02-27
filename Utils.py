@@ -130,10 +130,11 @@ def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
         raise ValueError('%s is not a valid option for case' %case)
     plt.close()
 
-def cond_save_mel(gen_out, score, best_score, n_iter, dir_path, min_flag):
+def cond_save_mel(gen_out, best_mel_spect, score, best_score, n_iter, dir_path, min_flag):
     """
     # updates best_score and saves the corresponding GAN output only if there is a substantial change in the activation score
     @param: gen_out: GAN output
+    @param: best_mel_spect: best mel spectrogram
     @param: score: neuron activation for the interation n_iter
     @param: best_score: best value of score so far
     @param: n_iter: optimisation iteration number
@@ -144,9 +145,9 @@ def cond_save_mel(gen_out, score, best_score, n_iter, dir_path, min_flag):
     if (((min_flag and (score < best_score)) or ((not min_flag) and (score > best_score))) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 10)) >=1)):
         print("Saving example_iteration_%d...." %(n_iter+1))
         #save_mel(gen_out, dir_path, score, iteration=n_iter+1)
-        return score
+        return gen_out, score
     else:
-        return best_score
+        return best_mel_spect, best_score
 
 def save_misc_params(y_axis_param, x_axis_param, output_dir, y_axis_label):
     """
