@@ -93,7 +93,7 @@ def apply_regularisation(reg_penalty, score, params_dict):
     if params_dict["reg_type"]=="Gaussian_Prior": # TO DO
         updated_score = tf.add(score, tf.multiply(tf.constant(params_dict['reg_param'], tf.float32), reg_penalty))
     else:
-        updated_score = tf.subtract(score, tf.multiply(tf.constant(0.5 * params_dict['reg_param'], tf.float32), reg_penalty))
+        updated_score = tf.subtract(score, tf.multiply(tf.constant(1.0 * params_dict['reg_param'], tf.float32), reg_penalty))
     
     return updated_score
 

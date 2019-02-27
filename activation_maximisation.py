@@ -13,6 +13,7 @@ import wrapper
 import librosa
 import pandas as pd
 from collections import OrderedDict
+import time
 
 #removes the run time tensorflow warning that points to compile code from source
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -100,7 +101,7 @@ def main():
         final_lr = args.init_lr * 1e-8
     
     # path to store optimisation results
-    results_path = args.output_dir + '/lr_' + str(args.init_lr) + '_rp_' + str(params_dict['reg_param'])
+    results_path = args.output_dir + '/lr_' + str(args.init_lr) + '_rp_' + str(params_dict['reg_param']) + '_iter_' + str(args.n_iters) + '/seed_' + str(args.seed)
     
     # shape of generator input and output : NOTE redundancy exists due to the use of conditional RNN generator code.
     num_gen_frames = gen_model_config["num_frames"] - gen_model_config["num_cond_frames"]
@@ -199,7 +200,8 @@ def main():
             neuron_score_best = -1000.0
 
         print
-        print("Optimisation starts.....")  
+        print("Optimisation starts.....")
+        start_time=time.time()
         
         for iteration in range(args.n_iters):
             
@@ -251,10 +253,10 @@ def main():
         x_axis_list = (np.arange(1, args.n_iters+1, 1)).tolist()
         path_dir = os.getcwd() + '/'+ results_path +'/'
         y_label_list = ['neuron_score', 'noise_L2_norm', 'grad_L2_norm']        
-        Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
+        #Utils.save_misc_params(y_axis_param_list, x_axis_list, path_dir, y_label_list)
     
         # saving key stats per optimisation in a csv file as row    
-        optm_stats.append(OrderedDict([('Learning Rate', args.init_lr), ('Regularisation Param', args.reg_param), ('Max/Min Activation', np.around(neuron_score_best, decimals=3)), ('Noise L2 Norm Diff', np.around(penalty_term[0] - penalty_term [-1], decimals = 3))]))
+        optm_stats.append(OrderedDict([('Learning Rate', args.init_lr), ('Regularisation Param', args.reg_param), ('Iterations', args.n_iters), ('Seed', args.seed), ('Max/Min Activation', np.around(neuron_score_best, decimals=3)), ('Noise L2 Norm Diff', np.around(penalty_term[0] - penalty_term [-1], decimals = 3))]))
         df_stats = pd.DataFrame(optm_stats)
         if args.count==1:
             df_stats.to_csv(args.stats_csv, mode='a', index=False)
@@ -264,7 +266,9 @@ def main():
         # save the best mel spectrogram to audio for auralisation                
         spect = Utils.logMelToSpectrogram(best_mel)
         audio = Utils.spectrogramToAudioFile(magnitude= spect, hopSize = nhop)
-        librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
+        #librosa.output.write_wav(results_path+ '/'+'recon_mel_max.wav', audio, sr = samp_rate, norm=norm_flag)
+        
+        print("Time taken: %f" %(time.time()-start_time))
         
 if __name__ == "__main__":
     main()

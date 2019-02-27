@@ -141,9 +141,9 @@ def cond_save_mel(gen_out, score, best_score, n_iter, dir_path, min_flag):
     @param: min_flag: if True, it's activation minimisation else maximisation
     @return: updated value of best_score
     """
-    if (((min_flag and (score < best_score)) or ((not min_flag) and (score > best_score))) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 1)) >=2)):
+    if (((min_flag and (score < best_score)) or ((not min_flag) and (score > best_score))) and (np.trunc(np.abs((np.abs(score) - np.abs(best_score)) * 10)) >=1)):
         print("Saving example_iteration_%d...." %(n_iter+1))
-        save_mel(gen_out, dir_path, score, iteration=n_iter+1)
+        #save_mel(gen_out, dir_path, score, iteration=n_iter+1)
         return score
     else:
         return best_score
