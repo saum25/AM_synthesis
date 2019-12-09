@@ -92,10 +92,10 @@ def apply_regularisation(reg_penalty, score, params_dict):
     if params_dict["reg_type"]=="Gaussian_Prior": # TO DO
         updated_score = tf.add(score, tf.multiply(tf.constant(params_dict['reg_param'], tf.float32), reg_penalty))
     elif params_dict['optm_minimise']: # when performing activation minimisation, remember that it is simply like L2 regularisation in deep learning that reduces the error and keeps weights of small value        
-        print("minimisation case....")
+        print("Activation minimisation case....")
         updated_score = tf.add(score, tf.multiply(tf.constant(1.0 * params_dict['reg_param'], tf.float32), reg_penalty))
     else: # consider this, the activation maximisation case as a special case, we are doing what Simonyan_iclr_2014 suggested
-        print("maximisation case....")
+        print("Activation maximisation case....")
         updated_score = tf.subtract(score, tf.multiply(tf.constant(1.0 * params_dict['reg_param'], tf.float32), reg_penalty))
     return updated_score
 
