@@ -188,6 +188,10 @@ def main():
         penalty_term = []
         grad_norm= []
         optm_stats = []
+        iclr = True
+        if iclr:
+            iclr_plots = [] # saves iteration 1 mel spect (output for inital noise vector) and the best mel spect
+            iclr_mel_fname = 'iclr_inp_mel_best_mel'+'_lr_'+str(args.init_lr)+'_rp_'+str(args.reg_param)+'_iter_'+str(args.n_iters)+'_seed_'+str(args.seed)+ '_minimise_'+str(args.minimise) +'.npz'
 
         # init the best (max or min) mel spect. we use it for inversion to audio
         best_mel = np.zeros((gen_model_config['num_freqs'], gen_model_config['num_frames']))
@@ -220,6 +224,11 @@ def main():
             # save output and update score
             best_mel, neuron_score_best=Utils.cond_save_mel(gen_output[0, :, :, 0], best_mel, neuron_score_iter[0], neuron_score_best, iteration, results_path, args.minimise)
 
+            # save output mel for the initial noise vector
+            if iclr and iteration==0:
+                iclr_plots.append(best_mel)
+            
+            
             if args.weight_decay == True and args.optimizer != 'Adam':
                 print("[Iteration]: %d [Neuron score (current)]: %.4f [Neuron score (O/p Saved)]: %.4f [input L2 Norm]: %.2f [Grad_mag]: %.2f [Learning Rate]: %f " %(iteration+1, neuron_score_iter[0], neuron_score_best, np.linalg.norm(z_low), np.linalg.norm(gradients[0]), step_size))
             else:    
@@ -262,8 +271,13 @@ def main():
         else:
             df_stats.to_csv(args.stats_csv, mode='a', header=False, index=False)
             
-        # save the best mel spectrogram and invert it to audio for auralisation
+        # save the best mel for iclr plots
+        if iclr:
+            iclr_plots.append(best_mel)
+            print("saving mel spects for the iclr plots")
+            np.savez(iclr_mel_fname, iclr_plots[0], iclr_plots[1]) # order-> max_mel, max_act, fc9_pred_max, min_mel, min_act fc9_pred_min
         
+        # save the best mel spectrogram and invert it to audio for auralisation        
         # save the best mel - it's a redundant step, but done to save the best output
         Utils.save_mel(best_mel, results_path, neuron_score_best, iteration=0)
                         

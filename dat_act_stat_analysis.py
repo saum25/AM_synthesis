@@ -25,7 +25,7 @@ import pandas as pd
 from collections import OrderedDict
 
 results_path= 'results/from_dataset/stat_analysis'
-act_files = ['acts_tr_neuron 0', 'acts_tr_neuron 1', 'acts_tr_neuron 2', 'acts_tr_neuron 3']
+act_files = ['acts_tr_neuron 0']
 n_cols = 2
 n_excerpts = 0
 iteration=0
@@ -40,7 +40,7 @@ try:
     for neuron, act_file in zip(neurons, act_files):
         print "======= analysing %s =======" %neuron
         
-        activation_file_path = 'dataset_analysis'+ '/' + act_file + '.npz'
+        activation_file_path = 'dataset_analysis'+ '/'+'one_neuron_model_sigmoid_split/' + act_file + '.npz'
         print "Reading activations from: %s" %activation_file_path
     
         # load activations for the selected neuron
@@ -50,7 +50,10 @@ try:
             act_dict = {fn:activations[fn] for fn in activations.files}
             for key, value in act_dict.items():
                 # list of 1-d activation arrays
-                act_list.append(value)
+                if value.ndim==1:
+                    act_list.append(value)
+                else:
+                    act_list.append(value.ravel())
         # column-wise stacking
         act_array = np.hstack(act_list)
         print("[Shape] stacked activation array:"),

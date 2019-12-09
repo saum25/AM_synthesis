@@ -13,7 +13,7 @@ rm -rf results
 # 0 -> only Adam
 
 sgd_optm=0
-act_min=0
+act_min=1
 
 # create results directory
 mkdir results
@@ -49,21 +49,24 @@ echo --------- optimisation starts ---------------
 echo 
 
 # number of optimisation steps
-for iter in 50 100 500
+for iter in 100
 do
-	for lr in 0.1 0.01 0.001
+	for lr in 0.01
 	do
 		# bash does''t support floating point arithmetic, so use bc to process
 		# watch for the use of $ sign while saving the output to another variable
 		# currently not used
 		#adaptive_reg=$(echo $lr*$scale_factor | bc -l)
 
-		for rp in 1.0 0.1 0.01
+		for rp in 0.001
 		do
 			echo ++++++++++++++++++++ learning rate: $lr regularisation paramter: $rp iterations: $iter hyperparam setting count: $setting_count ++++++++++++++
 			mkdir results/Adam/maximise/$lr_str$lr$rp_str$rp$iter_str$iter
+			if [ $act_min -eq 1 ]; then
+				mkdir results/Adam/minimise/$lr_str$lr$rp_str$rp$iter_str$iter
+			fi
 
-			for start in {0..24}
+			for start in 11
 			do
 				echo ++++++++++++++++++++ seed $start ++++++++++++++
 
@@ -85,9 +88,9 @@ do
 
 				if [ $act_min -eq 1 ];  then
 					echo +++++++ Adam - activation minimisation case ++++++++
-					mkdir results/Adam/minimise/$lr_str$lr$rp_str$rp
-					mkdir results/Adam/minimise/$lr_str$lr$rp_str$rp/examples
-					python activation_maximisation.py --output_dir results/Adam/minimise --init_lr $lr --reg_param $rp --n_iters $iter --stats_csv 'results/optm_stats_Adam.csv' --count $setting_count --minimise 
+					mkdir results/Adam/minimise/$lr_str$lr$rp_str$rp$iter_str$iter/$start_str$start
+					mkdir results/Adam/minimise/$lr_str$lr$rp_str$rp$iter_str$iter/$start_str$start/examples
+					python activation_maximisation.py --output_dir results/Adam/minimise --init_lr $lr --reg_param $rp --n_iters $iter --seed $start --stats_csv 'results/optm_stats_Adam.csv' --count $setting_count --minimise 
 				fi
 
 

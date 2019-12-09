@@ -20,8 +20,8 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 import Utils
 
-#audio_path='../deep_inversion/datasets/jamendo/audio/05 - Elles disent.mp3'
-audio_path='../deep_inversion/datasets/jamendo/audio/03 - Say me Good Bye.mp3'
+audio_path='../deep_inversion/datasets/jamendo/audio/05 - Elles disent.mp3'
+#audio_path='../deep_inversion/datasets/jamendo/audio/03 - Say me Good Bye.mp3'
 #audio_path='../deep_inversion/datasets/jamendo/audio/mix.wav'
 #audio_path='results/audio_recon_exp/inputs/LA_T_5459362.wav' # speech file
 dump_path = './results/audio_recon_exp/' # save results to
@@ -38,7 +38,7 @@ dur= 10#1.65 # for speech case set = None
 fs= 7
 full_range = False # defines if mel filters need to be designed between some range
 norm_flag= True
-invert_Jan_Mel= True
+invert_Jan_Mel= False
 
 
 if invert_Jan_Mel == True:
