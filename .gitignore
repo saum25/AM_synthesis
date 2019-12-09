@@ -4,6 +4,7 @@
 *.pyc
 models/classifier/model3/
 models/classifier/model2/
+models/classifier/model1/
 models/prior/checkpoints/
 results/
 dataset_analysis/
