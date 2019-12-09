@@ -118,7 +118,8 @@ def save_mel(gen_out, directory, score, iteration=0, pred=0, case='synth'):
     @return: NA
     '''
     plt.figure(figsize=(6, 4))
-    disp.specshow(normalise(gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm')
+    #disp.specshow(normalise(gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm')
+    disp.specshow((gen_out), x_axis = 'time', y_axis='mel', sr=22050, hop_length=315, fmin=27.5, fmax=8000, cmap = 'coolwarm') # remove the normalisation to understand value distribution
     plt.title('mel spectrogram of GAN output')
     plt.tight_layout()
     plt.colorbar()

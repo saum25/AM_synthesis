@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # paths of generator and classifier models and mean/std .npz
 gen_model_path = 'models/prior/checkpoints/623328/623328-1170000'
-cf_model_path = 'models/classifier/model1/Jamendo_augment_mel'
+cf_model_path = 'models/classifier/model1/Jamendo_augment_mel' # enable if one neuron model with split sigmoid case is to be used
 #cf_model_path = 'models/classifier/model2/Jamendo_augment_mel' # enable if two neuron model needs to be used.
 meanstd_file_path = 'models/classifier/jamendo_meanstd.npz'
 
@@ -89,7 +89,8 @@ def main():
                    'layer': args.layer, 
                    'neuron': args.neuron, 
                    'reg_param': args.reg_param,
-                   'reg_type':  args.reg_type, 
+                   'reg_type':  args.reg_type,
+                   'optm_minimise': args.minimise, 
                    'mean_std_fp': meanstd_file_path, # good to use extra comma to prevent issues when editing later
                    }
 
@@ -188,7 +189,7 @@ def main():
         penalty_term = []
         grad_norm= []
         optm_stats = []
-        iclr = True
+        iclr = False
         if iclr:
             iclr_plots = [] # saves iteration 1 mel spect (output for inital noise vector) and the best mel spect
             iclr_mel_fname = 'iclr_inp_mel_best_mel'+'_lr_'+str(args.init_lr)+'_rp_'+str(args.reg_param)+'_iter_'+str(args.n_iters)+'_seed_'+str(args.seed)+ '_minimise_'+str(args.minimise) +'.npz'
