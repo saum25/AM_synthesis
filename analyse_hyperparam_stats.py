@@ -44,7 +44,8 @@ print am_act_array.shape
 print am_act_array[0]'''
 
 # load .npz from dataset
-file_path = 'dataset_analysis/one_neuron_model_sigmoid_split/fc9_analysis.npz'
+#file_path = 'dataset_analysis/one_neuron_model_sigmoid_split/fc9_analysis.npz'
+file_path = 'dataset_analysis/two_neuron_model_model2/neuron_1/fc9_analysis.npz'
 with np.load(file_path) as fp:
         # list of np arrays
         ana_data = [fp[ele] for ele in sorted(fp.files)]

@@ -20,8 +20,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # paths of generator and classifier models and mean/std .npz
 gen_model_path = 'models/prior/checkpoints/623328/623328-1170000'
-cf_model_path = 'models/classifier/model1/Jamendo_augment_mel' # enable if one neuron model with split sigmoid case is to be used
-#cf_model_path = 'models/classifier/model2/Jamendo_augment_mel' # enable if two neuron model needs to be used.
+#cf_model_path = 'models/classifier/model1/Jamendo_augment_mel' # enable if one neuron model with split sigmoid case is to be used
+cf_model_path = 'models/classifier/model2/Jamendo_augment_mel' # enable if two neuron model needs to be used.
 meanstd_file_path = 'models/classifier/jamendo_meanstd.npz'
 
 # generator parameters

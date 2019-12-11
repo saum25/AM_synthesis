@@ -74,7 +74,7 @@ do
 				echo +++++++ Adam - activation maximisation case ++++++++
 				mkdir results/Adam/maximise/$lr_str$lr$rp_str$rp$iter_str$iter/$start_str$start
 				mkdir results/Adam/maximise/$lr_str$lr$rp_str$rp$iter_str$iter/$start_str$start/examples
-				python activation_maximisation.py --output_dir results/Adam/maximise --init_lr $lr --reg_param $rp --n_iters $iter --seed $start --stats_csv 'results/optm_stats_Adam.csv' --count $setting_count
+				python activation_maximisation.py --output_dir results/Adam/maximise --init_lr $lr --reg_param $rp --n_iters $iter --seed $start --stats_csv 'results/optm_stats_Adam.csv' --count $setting_count --n_out_neurons 2 --neuron 0
 
 				if [ $sgd_optm -eq 1 ]; then
 					echo +++++++ SGD - activation maximisation case ++++++++
